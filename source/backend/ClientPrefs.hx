@@ -34,6 +34,15 @@ import states.TitleState;
 	public var lowQuality:Bool = false;
 	public var shaders:Bool = true;
 	public var cacheOnGPU:Bool = #if !switch false #else true #end; // GPU Caching made by Raltyro
+	// OPTIMIZACION MOBILE: nuevas opciones de rendimiento
+	// Reescala la resolucion interna del juego antes de dibujar (menos pixeles = menos trabajo de GPU).
+	// 1.0 = nativa, 0.75 = 75%, 0.5 = mitad de resolucion (mayor ganancia de FPS en gama baja).
+	public var resolutionScale:Float = 1.0;
+	// Cuando esta activo, fuerza antialiasing apagado y desactiva shaders custom por nota/stage
+	// SIN necesidad de que el usuario toque cada opcion por separado. Es un atajo de "modo rendimiento".
+	public var performanceMode:Bool = false;
+	// Limita cuantos NoteSplash/particulas pueden existir a la vez (0 = usa el default del engine)
+	public var maxNoteSplashes:Int = 0;
 	public var framerate:Int = 60;
 	public var camZooms:Bool = true;
 	public var hideHud:Bool = false;
@@ -215,6 +224,16 @@ class ClientPrefs {
 		
 		if(Main.fpsVar != null)
 			Main.fpsVar.visible = data.showFPS;
+
+		// OPTIMIZACION MOBILE: "modo rendimiento" pisa antialiasing/shaders para gama baja
+		// sin que el usuario tenga que configurar cada opcion individualmente.
+		if(data.performanceMode)
+		{
+			data.antialiasing = false;
+			data.shaders = false;
+			data.camZooms = false;
+			data.flashing = false; // bonus: menos post-procesado de flash
+		}
 
 		#if (!html5 && !switch)
 		FlxG.autoPause = ClientPrefs.data.autoPause;
