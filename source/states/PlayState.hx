@@ -260,6 +260,10 @@ class PlayState extends MusicBeatState
 
 	// Less laggy controls
 	private var keysArray:Array<String>;
+	// OPTIMIZACION: arrays reusados en keysCheck() para no alocar memoria nueva cada frame
+	private var _holdArray:Array<Bool> = [];
+	private var _pressArray:Array<Bool> = [];
+	private var _releaseArray:Array<Bool> = [];
 	public var songName:String;
 
 	// Callbacks for stages
@@ -1707,11 +1711,19 @@ class PlayState extends MusicBeatState
 	var freezeCamera:Bool = false;
 	var allowDebugKeys:Bool = true;
 
+	// OPTIMIZACION: metodo reusado por update() en vez de crear una lambda nueva cada frame
+	function resetNoteFlagsForCountdown(daNote:Note):Void
+	{
+		daNote.canBeHit = false;
+		daNote.wasGoodHit = false;
+	}
+
 	override public function update(elapsed:Float)
 	{
 		if(!inCutscene && !paused && !freezeCamera) {
 			FlxG.camera.followLerp = 0.04 * cameraSpeed * playbackRate;
-			var idleAnim:Bool = (boyfriend.getAnimationName().startsWith('idle') || boyfriend.getAnimationName().startsWith('danceLeft') || boyfriend.getAnimationName().startsWith('danceRight'));
+			var bfAnimName:String = boyfriend.getAnimationName(); // OPTIMIZACION: 1 sola llamada en vez de 3
+			var idleAnim:Bool = (bfAnimName.startsWith('idle') || bfAnimName.startsWith('danceLeft') || bfAnimName.startsWith('danceRight'));
 			if(!startingSong && !endingSong && idleAnim) {
 				boyfriendIdleTime += elapsed;
 				if(boyfriendIdleTime >= 0.15) { // Kind of a mercy thing for making the achievement easier to get as it's apparently frustrating to some playerss
@@ -1796,9 +1808,13 @@ class PlayState extends MusicBeatState
 			camHUD.zoom = FlxMath.lerp(1, camHUD.zoom, Math.exp(-elapsed * 3.125 * camZoomingDecay * playbackRate));
 		}
 
+		#if debug
+		// OPTIMIZACION: addQuick escribe en un Map interno del debugger de Flixel
+		// cada frame; en Android release nadie lo ve, asi que no tiene sentido pagar el costo.
 		FlxG.watch.addQuick("secShit", curSection);
 		FlxG.watch.addQuick("beatShit", curBeat);
 		FlxG.watch.addQuick("stepShit", curStep);
+		#end
 
 		// RESET = Quick Game Over Screen
 		if (!ClientPrefs.data.noReset && controls.RESET && canReset && !inCutscene && startedCountdown && !endingSong)
@@ -1852,7 +1868,14 @@ class PlayState extends MusicBeatState
 							if(!daNote.mustPress) strumGroup = opponentStrums;
 
 							var strum:StrumNote = strumGroup.members[daNote.noteData];
+							// OPTIMIZACION/SEGURIDAD: evita null-crash en charts con noteData invalido
+							if(strum == null) { if(daNote.exists) i++; continue; }
+
 							daNote.followStrumNote(strum, fakeCrochet, songSpeed / playbackRate);
+
+							// OPTIMIZACION: culling - notas fuera de pantalla no se dibujan.
+							// Ahorra draw calls, sobre todo con muchas notas simultaneas (charts densos).
+							daNote.visible = (daNote.y > -daNote.height * 2 && daNote.y < FlxG.height + daNote.height * 2);
 
 							if(daNote.mustPress)
 							{
@@ -1878,11 +1901,9 @@ class PlayState extends MusicBeatState
 					}
 					else
 					{
-						notes.forEachAlive(function(daNote:Note)
-						{
-							daNote.canBeHit = false;
-							daNote.wasGoodHit = false;
-						});
+						// OPTIMIZACION: antes se creaba una closure nueva cada frame
+						// (basura para el GC). Ahora usa un metodo ya existente en la clase.
+						notes.forEachAlive(resetNoteFlagsForCountdown);
 					}
 				}
 			}
@@ -2884,14 +2905,23 @@ class PlayState extends MusicBeatState
 	private function keysCheck():Void
 	{
 		// HOLDING
-		var holdArray:Array<Bool> = [];
-		var pressArray:Array<Bool> = [];
-		var releaseArray:Array<Bool> = [];
-		for (key in keysArray)
+		// OPTIMIZACION: reusamos los arrays de la clase en vez de crear 3 arrays nuevos cada frame.
+		// Usamos length fijo (keysArray no cambia en gameplay) y sobreescribimos por indice.
+		if(_holdArray.length != keysArray.length)
 		{
-			holdArray.push(controls.pressed(key));
-			pressArray.push(controls.justPressed(key));
-			releaseArray.push(controls.justReleased(key));
+			_holdArray.resize(keysArray.length);
+			_pressArray.resize(keysArray.length);
+			_releaseArray.resize(keysArray.length);
+		}
+		var holdArray:Array<Bool> = _holdArray;
+		var pressArray:Array<Bool> = _pressArray;
+		var releaseArray:Array<Bool> = _releaseArray;
+		for (i in 0...keysArray.length)
+		{
+			var key = keysArray[i];
+			holdArray[i] = controls.pressed(key);
+			pressArray[i] = controls.justPressed(key);
+			releaseArray[i] = controls.justReleased(key);
 		}
 
 		// TO DO: Find a better way to handle controller inputs, this should work for now
@@ -2934,12 +2964,21 @@ class PlayState extends MusicBeatState
 					keyReleased(i);
 	}
 
+	// OPTIMIZACION: soporte para invalidateDupeNote (evita closure nueva en cada noteMiss)
+	private var _dupeCheckNote:Note;
+	function invalidateDupeNote(note:Note):Void
+	{
+		var daNote:Note = _dupeCheckNote;
+		if (daNote != note && daNote.mustPress && daNote.noteData == note.noteData && daNote.isSustainNote == note.isSustainNote && Math.abs(daNote.strumTime - note.strumTime) < 1)
+			invalidateNote(note);
+	}
+
 	function noteMiss(daNote:Note):Void { //You didn't hit the key and let it go offscreen, also used by Hurt Notes
 		//Dupe note remove
-		notes.forEachAlive(function(note:Note) {
-			if (daNote != note && daNote.mustPress && daNote.noteData == note.noteData && daNote.isSustainNote == note.isSustainNote && Math.abs(daNote.strumTime - note.strumTime) < 1)
-				invalidateNote(note);
-		});
+		// OPTIMIZACION: closure movida a metodo de clase (invalidateDupeNote) para no
+		// crear una funcion nueva en cada llamada (esto pasa por cada nota fallada).
+		_dupeCheckNote = daNote;
+		notes.forEachAlive(invalidateDupeNote);
 
 		noteMissCommon(daNote.noteData, daNote);
 		stagesFunc(function(stage:BaseStage) stage.noteMiss(daNote));
@@ -3203,6 +3242,11 @@ class PlayState extends MusicBeatState
 	}
 
 	public function spawnNoteSplash(x:Float = 0, y:Float = 0, ?data:Int = 0, ?note:Note, ?strum:StrumNote) {
+		// OPTIMIZACION MOBILE: si el usuario configuro un limite de splashes simultaneos,
+		// no generamos mas de la cuenta (menos sprites/shaders dibujandose en gama baja).
+		if(ClientPrefs.data.maxNoteSplashes > 0 && grpNoteSplashes.countLiving() >= ClientPrefs.data.maxNoteSplashes)
+			return;
+
 		var splash:NoteSplash = grpNoteSplashes.recycle(NoteSplash);
 		splash.babyArrow = strum;
 		splash.spawnSplashNote(x, y, data, note);
