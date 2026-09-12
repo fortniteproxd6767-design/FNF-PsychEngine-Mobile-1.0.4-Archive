@@ -399,7 +399,7 @@ class KBEventEditorState extends MusicBeatState
 		switch (eventName)
 		{
 			case 'KB_Alert':
-				var idx:Int = Std.parseInt(value1);
+				var idx:Null<Int> = Std.parseInt(value1);
 				if (idx == null || idx < 1 || idx > ALERT_SOUNDS.length) idx = 1;
 				FlxG.sound.play(Paths.sound('mechanics/alerts/Kade/${ALERT_SOUNDS[idx - 1]}'));
 			case 'KB_AlertDouble':
