@@ -47,6 +47,21 @@ class Main extends Sprite
 
 	public static final platform:String = #if mobile "Phones" #else "PCs" #end;
 
+	// OPTIMIZACION MOBILE: aplica ClientPrefs.data.resolutionScale usando FlxG.resizeGame,
+	// que renderiza a MENOS pixeles internamente y luego escala hacia arriba con el scaleMode
+	// actual (MobileScaleMode en Android). Esto SI reduce el trabajo real de la GPU, a diferencia
+	// de simplemente cambiar el zoom de camara (que sigue dibujando a resolucion completa).
+	public static function applyResolutionScale():Void
+	{
+		var scale:Float = ClientPrefs.data.resolutionScale;
+		if(scale == null || scale <= 0) scale = 1.0;
+		if(scale > 1) scale = 1.0; // no tiene sentido "superresolucion" aca
+
+		var newWidth:Int = Std.int(game.width * scale);
+		var newHeight:Int = Std.int(game.height * scale);
+		FlxG.resizeGame(newWidth, newHeight);
+	}
+
 	// You can pretty much ignore everything from here on - your code should go in your states.
 
 	public static function main():Void
@@ -150,6 +165,8 @@ class Main extends Sprite
 		#if mobile
 		FlxG.signals.postGameStart.addOnce(() -> {
 			FlxG.scaleMode = new MobileScaleMode();
+			// OPTIMIZACION MOBILE: aplica la escala de resolucion guardada apenas arranca el juego
+			applyResolutionScale();
 		});
 		#end
 		addChild(new FlxGame(game.width, game.height, #if COPYSTATE_ALLOWED !CopyState.checkExistingFiles() ? CopyState : #end game.initialState, game.framerate, game.framerate, game.skipSplash, game.startFullscreen));
