@@ -58,6 +58,12 @@ class FunkinLua {
 	public var callbacks:Map<String, Dynamic> = new Map<String, Dynamic>();
 	public static var customFunctions:Map<String, Dynamic> = new Map<String, Dynamic>();
 
+	// OPTIMIZACION: cache de "esta funcion existe en este script Lua". La mayoria de
+	// los callbacks (onUpdate, onBeatHit, etc.) se llaman 60 veces por segundo por CADA
+	// script cargado, pero un script tipico solo define un puñado de ellos. Esto evita
+	// pagar el costo de Lua.getglobal + type-check para callbacks que sabemos que no existen.
+	private var _funcExistsCache:Map<String, Bool> = new Map<String, Bool>();
+
 	public function new(scriptName:String) {
 		lua = LuaL.newstate();
 		LuaL.openlibs(lua);
@@ -1616,16 +1622,24 @@ class FunkinLua {
 		try {
 			if(lua == null) return LuaUtils.Function_Continue;
 
+			// OPTIMIZACION: si ya sabemos por una llamada anterior que esta funcion
+			// no existe en el script, evitamos el getglobal/type-check de Lua.
+			if(_funcExistsCache.get(func) == false)
+				return LuaUtils.Function_Continue;
+
 			Lua.getglobal(lua, func);
 			var type:Int = Lua.type(lua, -1);
 
 			if (type != Lua.LUA_TFUNCTION) {
+				_funcExistsCache.set(func, false); // cache negativo, no volvemos a buscarla
+
 				if (type > Lua.LUA_TNIL)
 					luaTrace("ERROR (" + func + "): attempt to call a " + LuaUtils.typeToString(type) + " value", false, false, FlxColor.RED);
 
 				Lua.pop(lua, 1);
 				return LuaUtils.Function_Continue;
 			}
+			_funcExistsCache.set(func, true);
 
 			for (arg in args) Convert.toLua(lua, arg);
 			var status:Int = Lua.pcall(lua, args.length, 1, 0);
