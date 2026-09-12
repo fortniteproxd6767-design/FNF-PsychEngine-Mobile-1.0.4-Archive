@@ -8,6 +8,7 @@ import openfl.media.Sound;
 
 import backend.ui.PsychUIInputText;
 import backend.ui.PsychUIDropDownMenu;
+import objects.Character.CharacterFile;
 import states.editors.content.MetaNote;
 import states.editors.content.*; // trae EventMetaNote
 
@@ -118,6 +119,8 @@ class KBEventEditorState extends MusicBeatState
 		add(infoText);
 
 		loadExistingEvents();
+
+		addTouchPad('LEFT_FULL', 'CHART_EDITOR');
 
 		super.create();
 	}
@@ -451,14 +454,25 @@ class KBEventEditorState extends MusicBeatState
 
 	function handleTransportKeys(elapsed:Float)
 	{
+		if (touchPad.buttonX.justPressed || FlxG.keys.justPressed.SPACE)
+			togglePlay();
+
 		if (FlxG.sound.music.playing)
 		{
 			Conductor.songPosition = FlxG.sound.music.time;
 		}
-		else
+		else if (touchPad.buttonUp.pressed || FlxG.keys.pressed.W
+			|| touchPad.buttonDown.pressed || FlxG.keys.pressed.S
+			|| FlxG.keys.pressed.RIGHT || FlxG.keys.pressed.LEFT)
 		{
-			if (FlxG.keys.pressed.RIGHT) Conductor.songPosition += 2000 * elapsed;
-			if (FlxG.keys.pressed.LEFT)  Conductor.songPosition -= 2000 * elapsed;
+			var speedMult:Float = (touchPad.buttonY.pressed || FlxG.keys.pressed.SHIFT) ? 4 : 1;
+			var timeAdd:Float = 700 * speedMult * elapsed;
+
+			if (touchPad.buttonUp.pressed || FlxG.keys.pressed.W || FlxG.keys.pressed.LEFT)
+				Conductor.songPosition -= timeAdd;
+			else if (touchPad.buttonDown.pressed || FlxG.keys.pressed.S || FlxG.keys.pressed.RIGHT)
+				Conductor.songPosition += timeAdd;
+
 			Conductor.songPosition = Math.max(0, Conductor.songPosition);
 			FlxG.sound.music.time = Conductor.songPosition;
 			if (vocals.length > 0) vocals.time = Conductor.songPosition;
