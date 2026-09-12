@@ -570,16 +570,20 @@ class CustomFlxColor {
 class CustomInterp extends crowplexus.hscript.Interp
 {
 	public var parentInstance(default, set):Dynamic = [];
-	private var _instanceFields:Array<String>;
+	// OPTIMIZACION: antes era Array<String> y se buscaba con .contains() -> O(n)
+	// por CADA variable resuelta en el script. Con un Map la busqueda es O(1).
+	// Esto es lo que mas se nota en Android: resolve() corre en cada linea de
+	// codigo HScript que lee una variable (osea, constantemente en onUpdate).
+	private var _instanceFields:Map<String, Bool>;
 	function set_parentInstance(inst:Dynamic):Dynamic
 	{
 		parentInstance = inst;
+		_instanceFields = new Map<String, Bool>();
 		if(parentInstance == null)
-		{
-			_instanceFields = [];
 			return inst;
-		}
-		_instanceFields = Type.getInstanceFields(Type.getClass(inst));
+
+		for (f in Type.getInstanceFields(Type.getClass(inst)))
+			_instanceFields.set(f, true);
 		return inst;
 	}
 
@@ -621,7 +625,8 @@ class CustomInterp extends crowplexus.hscript.Interp
 			return v;
 		}
 
-		if(parentInstance != null && _instanceFields.contains(id)) {
+		// OPTIMIZACION: Map.exists() en vez de Array.contains() -> O(1) en vez de O(n)
+		if(parentInstance != null && _instanceFields.exists(id)) {
 			var v = Reflect.getProperty(parentInstance, id);
 			return v;
 		}
