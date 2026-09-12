@@ -246,17 +246,21 @@ class Character extends FlxSprite
 			return;
 		}
 
+		// OPTIMIZACION: cacheamos el nombre de animacion una vez; solo lo volvemos a leer
+		// si algo en este mismo update pudo haberlo cambiado (dance()/playAnim()).
+		var animNameNow:String = getAnimationName();
+
 		if(heyTimer > 0)
 		{
 			var rate:Float = (PlayState.instance != null ? PlayState.instance.playbackRate : 1.0);
 			heyTimer -= elapsed * rate;
 			if(heyTimer <= 0)
 			{
-				var anim:String = getAnimationName();
-				if(specialAnim && (anim == 'hey' || anim == 'cheer'))
+				if(specialAnim && (animNameNow == 'hey' || animNameNow == 'cheer'))
 				{
 					specialAnim = false;
 					dance();
+					animNameNow = getAnimationName(); // dance() pudo haber cambiado la animacion
 				}
 				heyTimer = 0;
 			}
@@ -265,11 +269,13 @@ class Character extends FlxSprite
 		{
 			specialAnim = false;
 			dance();
+			animNameNow = getAnimationName();
 		}
-		else if (getAnimationName().endsWith('miss') && isAnimationFinished())
+		else if (animNameNow.endsWith('miss') && isAnimationFinished())
 		{
 			dance();
 			finishAnimation();
+			animNameNow = getAnimationName();
 		}
 
 		switch(curCharacter)
@@ -283,20 +289,22 @@ class Character extends FlxSprite
 					noteData += FlxG.random.int(0, 1);
 					playAnim('shoot' + noteData, true);
 					animationNotes.shift();
+					animNameNow = getAnimationName(); // playAnim() cambio la animacion
 				}
-				if(isAnimationFinished()) playAnim(getAnimationName(), false, false, animation.curAnim.frames.length - 3);
+				if(isAnimationFinished()) playAnim(animNameNow, false, false, animation.curAnim.frames.length - 3);
 		}
 
-		if (getAnimationName().startsWith('sing')) holdTimer += elapsed;
+		if (animNameNow.startsWith('sing')) holdTimer += elapsed;
 		else if(isPlayer) holdTimer = 0;
 
 		if (!isPlayer && holdTimer >= Conductor.stepCrochet * (0.0011 #if FLX_PITCH / (FlxG.sound.music != null ? FlxG.sound.music.pitch : 1) #end) * singDuration)
 		{
 			dance();
 			holdTimer = 0;
+			animNameNow = getAnimationName();
 		}
 
-		var name:String = getAnimationName();
+		var name:String = animNameNow;
 		if(isAnimationFinished() && hasAnimation('$name-loop'))
 			playAnim('$name-loop');
 

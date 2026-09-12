@@ -471,6 +471,17 @@ class Note extends FlxSprite
 	{
 		super.update(elapsed);
 
+		// OPTIMIZACION: una vez que la nota ya fue resuelta (hit correctamente,
+		// o marcada tooLate) el resultado de canBeHit/tooLate/wasGoodHit ya no
+		// cambia jamas para el resto de su vida util, asi que no hace falta
+		// recalcularlo cada frame hasta que PlayState la mate.
+		if (wasGoodHit || tooLate)
+		{
+			if (tooLate && !inEditor && alpha > 0.3)
+				alpha = 0.3;
+			return;
+		}
+
 		if (mustPress)
 		{
 			canBeHit = (strumTime > Conductor.songPosition - (Conductor.safeZoneOffset * lateHitMult) &&
@@ -488,12 +499,6 @@ class Note extends FlxSprite
 				if(!isSustainNote || (prevNote.wasGoodHit && !ignoreNote))
 					wasGoodHit = true;
 			}
-		}
-
-		if (tooLate && !inEditor)
-		{
-			if (alpha > 0.3)
-				alpha = 0.3;
 		}
 	}
 
