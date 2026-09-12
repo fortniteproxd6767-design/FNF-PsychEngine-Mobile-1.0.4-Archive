@@ -33,6 +33,36 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 		addOption(option);
 		antialiasingOption = optionsArray.length-1;
 
+		// OPTIMIZACION MOBILE: modo rendimiento todo-en-uno
+		var option:Option = new Option('Performance Mode',
+			'Turns off Anti-Aliasing, Shaders, Camera Zooms and Flashing lights all at once.\nBest option if your phone struggles to keep FPS up.',
+			'performanceMode',
+			BOOL);
+		addOption(option);
+
+		// OPTIMIZACION MOBILE: escala de resolucion interna (renderiza a menos pixeles)
+		var option:Option = new Option('Resolution Scale',
+			"Renders the game at a lower internal resolution and stretches it to fit your screen.\nLower values = more FPS, less sharpness.",
+			'resolutionScale',
+			FLOAT);
+		option.minValue = 0.5;
+		option.maxValue = 1.0;
+		option.scrollSpeed = 0.05;
+		option.decimals = 2;
+		option.displayFormat = '%v';
+		option.onChange = onChangeResolutionScale;
+		addOption(option);
+
+		// OPTIMIZACION MOBILE: limite de particulas de note splash simultaneas
+		var option:Option = new Option('Max Note Splashes',
+			"Limits how many note splash effects can exist at once.\n0 = no limit (engine default).",
+			'maxNoteSplashes',
+			INT);
+		option.minValue = 0;
+		option.maxValue = 20;
+		option.displayFormat = '%v';
+		addOption(option);
+
 		var option:Option = new Option('Shaders', //Name
 			"If unchecked, disables shaders.\nIt's used for some visual effects, and also CPU intensive for weaker " + Main.platform + ".", //Description
 			'shaders',
@@ -79,6 +109,12 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 				sprite.antialiasing = ClientPrefs.data.antialiasing;
 			}
 		}
+	}
+
+	// OPTIMIZACION MOBILE: aplica el cambio de resolucion en caliente al mover el slider
+	function onChangeResolutionScale()
+	{
+		Main.applyResolutionScale();
 	}
 
 	function onChangeFramerate()
