@@ -505,7 +505,7 @@ class KBEventEditorState extends MusicBeatState
 		visibleBoxes = [];
 
 		var step:Float = Conductor.stepCrochet;
-		if (step == null || step <= 0) step = 200;
+		if (step <= 0) step = 200;
 
 		var firstStep:Int = Math.floor(scrollTime / step) - 1;
 		var lastStep:Int = Math.ceil((scrollTime + FlxG.height / PIXELS_PER_MS) / step) + 1;
