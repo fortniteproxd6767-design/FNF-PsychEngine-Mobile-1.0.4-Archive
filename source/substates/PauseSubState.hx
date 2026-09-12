@@ -15,7 +15,7 @@ class PauseSubState extends MusicBeatSubstate
 	var grpMenuShit:FlxTypedGroup<Alphabet>;
 
 	var menuItems:Array<String> = [];
-	var menuItemsOG:Array<String> = ['Resume', 'Restart Song', 'Chart Editor', 'Change Difficulty', 'Options', 'Exit to menu'];
+	var menuItemsOG:Array<String> = ['Resume', 'Restart Song', 'Chart Editor', 'KB Event Editor', 'Change Difficulty', 'Options', 'Exit to menu'];
 	var difficultyChoices = [];
 	var curSelected:Int = 0;
 
@@ -280,6 +280,10 @@ class PauseSubState extends MusicBeatSubstate
 					restartSong();
 				case 'Chart Editor':
 					PlayState.instance.openChartEditor();
+				case 'KB Event Editor':
+					PlayState.instance.paused = true;
+					PlayState.instance.canResync = false;
+					MusicBeatState.switchState(new states.editors.KBEventEditorState());
 				case "Leave Charting Mode":
 					restartSong();
 					PlayState.chartingMode = false;
