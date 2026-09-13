@@ -54,7 +54,7 @@ class Main extends Sprite
 	public static function applyResolutionScale():Void
 	{
 		var scale:Float = ClientPrefs.data.resolutionScale;
-		if(scale == null || scale <= 0) scale = 1.0;
+		if(scale <= 0) scale = 1.0;
 		if(scale > 1) scale = 1.0; // no tiene sentido "superresolucion" aca
 
 		var newWidth:Int = Std.int(game.width * scale);
