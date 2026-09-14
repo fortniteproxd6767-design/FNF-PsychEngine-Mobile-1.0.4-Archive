@@ -53,6 +53,13 @@
 	<!--Mobile-specific-->
 	<window if="mobile" orientation="landscape" fullscreen="true" resizable="false" allow-shaders="true" require-shaders="true" />
 
+	<!-- OPTIMIZACION MOBILE: le pide a Android mas heap disponible para esta app.
+		 No esta garantizado en TODOS los dispositivos (algunos fabricantes lo ignoran
+		 en gama muy baja), pero en la mayoria evita los OOM-kill silenciosos al
+		 cargar canciones con muchos assets. -->
+	<config:android largeHeap="true" if="android" />
+	<config:android minimum-sdk-version="21" if="android" />
+
 	<!--Switch-specific-->
 	<window if="switch" orientation="landscape" fullscreen="true" width="0" height="0" resizable="true" />
 
@@ -167,6 +174,15 @@
 
 	<!--Enable this for Nape release builds for a serious peformance improvement-->
 	<haxedef name="NAPE_RELEASE_BUILD" unless="debug" />
+
+	<!-- OPTIMIZACION MOBILE: GC generacional de HXCPP.
+		 El GC por defecto para todo el heap de una en la mayoria de los frames,
+		 lo que causa los "freezes" random que sientes en las flechas. El modo
+		 generacional solo recolecta basura "joven" (objetos recien creados, como
+		 las notas/closures que se destruyen constantemente) la mayor parte del
+		 tiempo, y hace pasadas completas mucho menos seguido -> pausas mas cortas
+		 y mas frecuentes en vez de una pausa larga que se siente como lag spike. -->
+	<haxedef name="HXCPP_GC_GENERATIONAL" if="cpp" />
 	
 	<!--Used for crash handler-->
 	<section if="cpp">
