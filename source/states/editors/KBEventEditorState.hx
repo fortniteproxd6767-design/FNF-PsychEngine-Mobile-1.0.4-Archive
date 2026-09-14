@@ -2,11 +2,13 @@ package states.editors;
 
 import flixel.input.keyboard.FlxKey;
 import flixel.group.FlxGroup.FlxTypedGroup;
+import flixel.group.FlxGroup.FlxGroup;
 import flixel.util.FlxColor;
 import flixel.util.FlxSpriteUtil;
 import flixel.ui.FlxButton;
 import openfl.media.Sound;
 import haxe.Json;
+import mobile.objects.TouchButton;
 
 import backend.ui.PsychUIInputText;
 import backend.ui.PsychUIDropDownMenu;
@@ -71,6 +73,7 @@ class KBEventEditorState extends MusicBeatState
 	var opponentVocals:FlxSound = new FlxSound();
 
 	// UI táctil
+	var uiGroup:FlxGroup = new FlxGroup();
 	var eventButtons:Array<FlxButton> = [];
 	var eventDropDown:PsychUIDropDownMenu;
 
@@ -115,6 +118,7 @@ class KBEventEditorState extends MusicBeatState
 		buildEventSelector();
 		buildEventButtons();
 		buildBottomBar();
+		add(uiGroup);
 
 		infoText = new FlxText(10, FlxG.height - 168, FlxG.width - 20, '', 14);
 		infoText.scrollFactor.set();
@@ -233,12 +237,12 @@ class KBEventEditorState extends MusicBeatState
 		{
 			var btn:FlxButton = new FlxButton(LANE_X[i] - 55, 24, LANE_NAMES[i], function() activeLane = i);
 			btn.scrollFactor.set();
-			add(btn);
+			uiGroup.add(btn);
 
 			var label:FlxText = new FlxText(LANE_X[i] - 55, 50, 110, '', 12);
 			label.alignment = CENTER;
 			label.scrollFactor.set();
-			add(label);
+			uiGroup.add(label);
 			laneLabels.push(label);
 		}
 	}
@@ -252,15 +256,15 @@ class KBEventEditorState extends MusicBeatState
 
 		var label:FlxText = new FlxText(10, FlxG.height - 268, 100, 'Evento a colocar:', 12);
 		label.scrollFactor.set();
-		add(label);
+		uiGroup.add(label);
 
 		eventDropDown = new PsychUIDropDownMenu(140, FlxG.height - 272, allNames, function(id:Int, name:String) {});
 		eventDropDown.scrollFactor.set();
-		add(eventDropDown);
+		uiGroup.add(eventDropDown);
 
 		var v1Label:FlxText = new FlxText(360, FlxG.height - 268, 55, 'Value 1:', 12);
 		v1Label.scrollFactor.set();
-		add(v1Label);
+		uiGroup.add(v1Label);
 
 		value1Input = new PsychUIInputText(420, FlxG.height - 272, 80, '', 12);
 		value1Input.scrollFactor.set();
@@ -268,11 +272,11 @@ class KBEventEditorState extends MusicBeatState
 		{
 			if (selectedEvent != null) selectedEvent.events[0][1] = newText;
 		};
-		add(value1Input);
+		uiGroup.add(value1Input);
 
 		var v2Label:FlxText = new FlxText(510, FlxG.height - 268, 55, 'Value 2:', 12);
 		v2Label.scrollFactor.set();
-		add(v2Label);
+		uiGroup.add(v2Label);
 
 		value2Input = new PsychUIInputText(570, FlxG.height - 272, 130, '', 12);
 		value2Input.scrollFactor.set();
@@ -280,7 +284,7 @@ class KBEventEditorState extends MusicBeatState
 		{
 			if (selectedEvent != null) selectedEvent.events[0][2] = newText;
 		};
-		add(value2Input);
+		uiGroup.add(value2Input);
 	}
 
 	function buildEventButtons()
@@ -303,7 +307,7 @@ class KBEventEditorState extends MusicBeatState
 			btn.setGraphicSize(Std.int(btnWidth), 32);
 			btn.updateHitbox();
 			btn.scrollFactor.set();
-			add(btn);
+			uiGroup.add(btn);
 			eventButtons.push(btn);
 		}
 	}
@@ -325,7 +329,7 @@ class KBEventEditorState extends MusicBeatState
 	{
 		var btn:FlxButton = new FlxButton(x, y, label, cb);
 		btn.scrollFactor.set();
-		add(btn);
+		uiGroup.add(btn);
 	}
 
 	// ---------------- Carga / eventos ----------------
@@ -456,6 +460,15 @@ class KBEventEditorState extends MusicBeatState
 
 	function handleTransportKeys(elapsed:Float)
 	{
+		if (touchPad.buttonF.justPressed || FlxG.keys.justPressed.F1)
+		{
+			touchPad.forEachAlive(function(button:TouchButton)
+			{
+				if (button.tag != 'F')
+					button.visible = !button.visible;
+			});
+		}
+
 		if (touchPad.buttonX.justPressed || FlxG.keys.justPressed.SPACE)
 			togglePlay();
 
