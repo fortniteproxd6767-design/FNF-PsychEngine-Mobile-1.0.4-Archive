@@ -404,6 +404,16 @@ class LoadingState extends MusicBeatState
 	static var dontPreloadDefaultVoices:Bool = false;
 	static function _startPool()
 	{
+		// OPTIMIZACION / FIX DE MEMORIA: _startPool() se llama varias veces por
+		// cada carga de cancion (getNextState, prepareToSong, _threadFunc). Antes,
+		// cada llamada creaba un FixedThreadPool NUEVO sin cerrar el anterior,
+		// dejando hilos huerfanos corriendo (nadie los detiene hasta _loaded(),
+		// que solo conoce el ULTIMO pool creado). Con canciones repetidas/retries
+		// esto acumula hilos zombie durante toda la sesion -> mas RAM usada y
+		// mas probabilidad de crash o ralentizacion con el tiempo.
+		if (threadPool != null)
+			threadPool.shutdown();
+
 		#if MULTITHREADED_LOADING
 		// Due to the Main thread and Discord thread, we decrease it by 2.
 		var threadCount:Int = Std.int(Math.max(1, CoolUtil.getCPUThreadsCount() - #if DISCORD_ALLOWED 2 #else 1 #end));
