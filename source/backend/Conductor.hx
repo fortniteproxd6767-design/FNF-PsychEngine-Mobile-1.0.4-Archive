@@ -39,33 +39,46 @@ class Conductor
 		return lastChange.stepCrochet*4;
 	}
 
+	// OPTIMIZACION: objeto reusado para el caso comun (canciones sin cambios de BPM)
+	// en vez de allocar un struct nuevo en CADA llamada, que corre cada frame.
+	// Nadie mas escribe estos campos fuera de aca, asi que es seguro reusarlo.
+	static var _defaultChange:BPMChangeEvent = {
+		stepTime: 0,
+		songTime: 0,
+		bpm: bpm,
+		stepCrochet: stepCrochet
+	};
+
 	public static function getBPMFromSeconds(time:Float){
-		var lastChange:BPMChangeEvent = {
-			stepTime: 0,
-			songTime: 0,
-			bpm: bpm,
-			stepCrochet: stepCrochet
-		}
+		_defaultChange.bpm = bpm;
+		_defaultChange.stepCrochet = stepCrochet;
+		var lastChange:BPMChangeEvent = _defaultChange;
+
+		// OPTIMIZACION: bpmChangeMap esta ordenado ascendente por songTime
+		// (se construye asi en mapBPMChanges), asi que cortamos apenas nos
+		// pasamos del tiempo actual en vez de recorrer el array entero cada vez.
 		for (i in 0...Conductor.bpmChangeMap.length)
 		{
 			if (time >= Conductor.bpmChangeMap[i].songTime)
 				lastChange = Conductor.bpmChangeMap[i];
+			else
+				break;
 		}
 
 		return lastChange;
 	}
 
 	public static function getBPMFromStep(step:Float){
-		var lastChange:BPMChangeEvent = {
-			stepTime: 0,
-			songTime: 0,
-			bpm: bpm,
-			stepCrochet: stepCrochet
-		}
+		_defaultChange.bpm = bpm;
+		_defaultChange.stepCrochet = stepCrochet;
+		var lastChange:BPMChangeEvent = _defaultChange;
+
 		for (i in 0...Conductor.bpmChangeMap.length)
 		{
 			if (Conductor.bpmChangeMap[i].stepTime<=step)
 				lastChange = Conductor.bpmChangeMap[i];
+			else
+				break;
 		}
 
 		return lastChange;

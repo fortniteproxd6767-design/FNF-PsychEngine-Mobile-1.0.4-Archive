@@ -162,13 +162,22 @@ class MusicBeatState extends FlxState
 		}
 
 		if(FlxG.save.data != null) FlxG.save.data.fullscreen = FlxG.fullscreen;
-		
-		stagesFunc(function(stage:BaseStage) {
-			stage.update(elapsed);
-		});
+
+		// OPTIMIZACION: antes se creaba una closure nueva ACA cada frame (60/seg),
+		// corra o no algun stage. Ahora usamos un metodo de clase reusado.
+		_updateElapsed = elapsed;
+		stagesFunc(callStageUpdate);
 
 		super.update(elapsed);
 	}
+
+	// OPTIMIZACION: soporte de los metodos reusados por stagesFunc, evitan crear
+	// una closure nueva cada vez que se llama update()/stepHit()/beatHit()/sectionHit().
+	private var _updateElapsed:Float = 0;
+	private function callStageUpdate(stage:BaseStage):Void { stage.update(_updateElapsed); }
+	private function callStageStepHit(stage:BaseStage):Void { stage.curStep = curStep; stage.curDecStep = curDecStep; stage.stepHit(); }
+	private function callStageBeatHit(stage:BaseStage):Void { stage.curBeat = curBeat; stage.curDecBeat = curDecBeat; stage.beatHit(); }
+	private function callStageSectionHit(stage:BaseStage):Void { stage.curSection = curSection; stage.sectionHit(); }
 
 	private function updateSection():Void
 	{
@@ -256,11 +265,7 @@ class MusicBeatState extends FlxState
 
 	public function stepHit():Void
 	{
-		stagesFunc(function(stage:BaseStage) {
-			stage.curStep = curStep;
-			stage.curDecStep = curDecStep;
-			stage.stepHit();
-		});
+		stagesFunc(callStageStepHit);
 
 		if (curStep % 4 == 0)
 			beatHit();
@@ -270,20 +275,13 @@ class MusicBeatState extends FlxState
 	public function beatHit():Void
 	{
 		//trace('Beat: ' + curBeat);
-		stagesFunc(function(stage:BaseStage) {
-			stage.curBeat = curBeat;
-			stage.curDecBeat = curDecBeat;
-			stage.beatHit();
-		});
+		stagesFunc(callStageBeatHit);
 	}
 
 	public function sectionHit():Void
 	{
-		//trace('Section: ' + curSection + ', Beat: ' + curBeat + ', Step: ' + curStep);
-		stagesFunc(function(stage:BaseStage) {
-			stage.curSection = curSection;
-			stage.sectionHit();
-		});
+		//trace('Section: ' + curSection + ', Beat: ' + curBeat);
+		stagesFunc(callStageSectionHit);
 	}
 
 	function stagesFunc(func:BaseStage->Void)

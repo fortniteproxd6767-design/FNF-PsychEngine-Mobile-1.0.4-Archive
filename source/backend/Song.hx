@@ -136,6 +136,14 @@ class Song
 	}
 
 	static var _lastPath:String;
+	// OPTIMIZACION: cache del TEXTO crudo del chart por ruta (no del objeto ya
+	// parseado). Guardamos solo el texto para no arriesgarnos si algo en tiempo
+	// de ejecucion llega a modificar PlayState.SONG despues de cargarlo (pasa en
+	// Psych con notetypes/eventos) - asi cada carga sigue generando un objeto
+	// SwagSong fresco via Json.parse, pero nos ahorramos el disco/IO en retries
+	// y en practice mode, que es sincronico y corre en el hilo principal.
+	static var _rawChartCache:Map<String, String> = new Map<String, String>();
+
 	public static function getChart(jsonInput:String, ?folder:String):SwagSong
 	{
 		if(folder == null) folder = jsonInput;
@@ -145,14 +153,30 @@ class Song
 		var formattedSong:String = Paths.formatToSongPath(jsonInput);
 		_lastPath = Paths.json('$formattedFolder/$formattedSong');
 
-		#if MODS_ALLOWED
-		if(FileSystem.exists(_lastPath))
-			rawData = File.getContent(_lastPath);
+		if(_rawChartCache.exists(_lastPath))
+			rawData = _rawChartCache.get(_lastPath);
 		else
-		#end
-			rawData = Assets.getText(_lastPath);
+		{
+			#if MODS_ALLOWED
+			if(FileSystem.exists(_lastPath))
+				rawData = File.getContent(_lastPath);
+			else
+			#end
+				rawData = Assets.getText(_lastPath);
+
+			if(rawData != null)
+				_rawChartCache.set(_lastPath, rawData);
+		}
 
 		return rawData != null ? parseJSON(rawData, jsonInput) : null;
+	}
+
+	// Llamar esto si un mod permite editar/recargar charts en caliente
+	// (por ejemplo un editor de charts dentro del juego), para no quedarse
+	// con una version vieja cacheada.
+	public static function clearChartCache():Void
+	{
+		_rawChartCache = new Map<String, String>();
 	}
 
 	public static function parseJSON(rawData:String, ?nameForError:String = null, ?convertTo:String = 'psych_v1'):SwagSong

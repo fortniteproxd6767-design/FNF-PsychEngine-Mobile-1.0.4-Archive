@@ -42,7 +42,7 @@ class Paths
 		for (key in currentTrackedAssets.keys())
 		{
 			// if it is not currently contained within the used local assets
-			if (!localTrackedAssets.contains(key) && !dumpExclusions.contains(key))
+			if (!_localTrackedSet.exists(key) && !dumpExclusions.contains(key))
 			{
 				destroyGraphic(currentTrackedAssets.get(key)); // get rid of the graphic
 				currentTrackedAssets.remove(key); // and remove the key from local cache map
@@ -58,6 +58,25 @@ class Paths
 
 	// define the locally tracked assets
 	public static var localTrackedAssets:Array<String> = [];
+	// OPTIMIZACION: Map paralelo solo para chequeos de existencia O(1). El Array
+	// se mantiene igual (por si algun mod/script lee Paths.localTrackedAssets
+	// directamente esperando un Array), pero TODO chequeo interno de "ya esta
+	// trackeado" usa este Map en vez de Array.contains(), que es O(n) y se
+	// pone mas lento cuanto mas assets carga una cancion.
+	private static var _localTrackedSet:Map<String, Bool> = new Map<String, Bool>();
+
+	// OPTIMIZACION: helper central para trackear un asset. Antes cada lugar
+	// hacia .push(key) sin chequear duplicados, asi que el mismo asset pedido
+	// varias veces en una cancion (muy comun) inflaba el array con strings
+	// repetidos, empeorando cada limpieza de memoria entre canciones.
+	static inline function trackAsset(key:String):Void
+	{
+		if (!_localTrackedSet.exists(key))
+		{
+			_localTrackedSet.set(key, true);
+			localTrackedAssets.push(key);
+		}
+	}
 
 	@:access(flixel.system.frontEnds.BitmapFrontEnd._cache)
 	public static function clearStoredMemory()
@@ -72,7 +91,7 @@ class Paths
 		// clear all sounds that are cached
 		for (key => asset in currentTrackedSounds)
 		{
-			if (!localTrackedAssets.contains(key) && !dumpExclusions.contains(key) && asset != null)
+			if (!_localTrackedSet.exists(key) && !dumpExclusions.contains(key) && asset != null)
 			{
 				Assets.cache.clear(key);
 				currentTrackedSounds.remove(key);
@@ -80,6 +99,7 @@ class Paths
 		}
 		// flags everything to be cleared out next unused memory clear
 		localTrackedAssets = [];
+		_localTrackedSet = new Map<String, Bool>();
 		#if !html5 openfl.Assets.cache.clear("songs"); #end
 	}
 
@@ -237,7 +257,7 @@ class Paths
 		var bitmap:BitmapData = null;
 		if (currentTrackedAssets.exists(key))
 		{
-			localTrackedAssets.push(key);
+			trackAsset(key);
 			return currentTrackedAssets.get(key);
 		}
 		return cacheBitmap(key, parentFolder, bitmap, allowGPU);
@@ -281,7 +301,7 @@ class Paths
 		graph.destroyOnNoUse = false;
 
 		currentTrackedAssets.set(key, graph);
-		localTrackedAssets.push(key);
+		trackAsset(key);
 		return graph;
 	}
 
@@ -455,7 +475,7 @@ class Paths
 				return FlxAssets.getSound('flixel/sounds/beep');
 			}
 		}
-		localTrackedAssets.push(file);
+		trackAsset(file);
 		return currentTrackedSounds.get(file);
 	}
 
