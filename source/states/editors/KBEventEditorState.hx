@@ -14,6 +14,8 @@ import mobile.objects.TouchButton;
 import backend.ui.PsychUIInputText;
 import backend.ui.PsychUIDropDownMenu;
 import objects.Character.CharacterFile;
+import backend.StageData;
+import backend.Song;
 import states.editors.content.MetaNote;
 import states.editors.content.*; // trae EventMetaNote
 
