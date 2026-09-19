@@ -210,7 +210,7 @@ class KBEventEditorState extends MusicBeatState
 			for (section in PlayState.SONG.notes)
 			{
 				if (section.changeBPM) bpm = section.bpm;
-				var beats:Float = (section.sectionBeats != null && section.sectionBeats > 0) ? section.sectionBeats : 4;
+				var beats:Float = (section.sectionBeats > 0) ? section.sectionBeats : 4;
 				var crochet:Float = (60 / bpm) * 1000;
 
 				cachedSectionTimes.push(time);
