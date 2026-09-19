@@ -5,6 +5,7 @@ import flixel.group.FlxGroup.FlxTypedGroup;
 import flixel.group.FlxGroup.FlxGroup;
 import flixel.util.FlxColor;
 import flixel.util.FlxSpriteUtil;
+import flixel.math.FlxMath;
 import flixel.ui.FlxButton;
 import openfl.media.Sound;
 import haxe.Json;
@@ -26,8 +27,9 @@ class KBEventEditorState extends MusicBeatState
 	static inline final LANE_COUNT:Int = 3;
 	static final LANE_X:Array<Float> = [200, 500, 800];
 	static final LANE_NAMES:Array<String> = ['Carril A', 'Carril B', 'Carril C'];
-	static inline final PIXELS_PER_MS:Float = 0.25;
-	static inline final BOX_SIZE:Float = 40;
+	static inline final BASE_PIXELS_PER_MS:Float = 0.25;
+	static inline final BOX_WIDTH:Float = 40;
+	static final zoomList:Array<Float> = [0.25, 0.5, 1, 2, 3, 4, 6, 8, 12, 16, 24];
 	static inline final SOUND_SKIN:String = 'kade'; // mismo default que KB_DodgeFixx.lua
 
 	// Botones rápidos de eventos KB_ (se colocan en el carril activo, en el tiempo actual)
@@ -62,6 +64,14 @@ class KBEventEditorState extends MusicBeatState
 	var activeLane:Int = 0;
 	var scrollTime:Float = 0;
 	var lastCheckedTime:Float = 0;
+	var curZoom:Float = 1;
+	var pixelsPerMs:Float = BASE_PIXELS_PER_MS;
+	var snapEnabled:Bool = true;
+
+	// Secciones (igual que el Chart Editor: tiempos de inicio de cada sección, según BPM)
+	var cachedSectionTimes:Array<Float> = [];
+	var cachedSectionBPMs:Array<Float> = [];
+	var curSec:Int = 0;
 
 	var playhead:FlxSprite;
 	var infoText:FlxText;
@@ -79,6 +89,7 @@ class KBEventEditorState extends MusicBeatState
 
 	var value1Input:PsychUIInputText;
 	var value2Input:PsychUIInputText;
+	var snapButton:FlxButton;
 
 	override function create()
 	{
@@ -90,6 +101,7 @@ class KBEventEditorState extends MusicBeatState
 		vocals.autoDestroy = opponentVocals.autoDestroy = false;
 
 		loadAudio();
+		buildSectionTimes();
 
 		var bg:FlxSprite = new FlxSprite().makeGraphic(FlxG.width, FlxG.height, FlxColor.fromRGB(18, 18, 24));
 		bg.scrollFactor.set();
@@ -181,6 +193,60 @@ class KBEventEditorState extends MusicBeatState
 		}
 	}
 
+	// Tiempos de inicio de cada sección, respetando cambios de BPM por sección
+	// (misma matemática que ChartingState.recalculateSectionTimes, pero de solo lectura)
+	function buildSectionTimes()
+	{
+		cachedSectionTimes = [];
+		cachedSectionBPMs = [];
+
+		var time:Float = 0;
+		var bpm:Float = PlayState.SONG.bpm;
+
+		if (PlayState.SONG.notes != null)
+		{
+			for (section in PlayState.SONG.notes)
+			{
+				if (section.changeBPM) bpm = section.bpm;
+				var beats:Float = (section.sectionBeats != null && section.sectionBeats > 0) ? section.sectionBeats : 4;
+				var crochet:Float = (60 / bpm) * 1000;
+
+				cachedSectionTimes.push(time);
+				cachedSectionBPMs.push(bpm);
+				time += crochet * beats;
+			}
+		}
+		cachedSectionTimes.push(time); // marca de fin, para poder navegar a la última sección
+	}
+
+	function updateCurSec()
+	{
+		while (curSec > 0 && Conductor.songPosition < cachedSectionTimes[curSec])
+			curSec--;
+		while (curSec < cachedSectionTimes.length - 2 && Conductor.songPosition >= cachedSectionTimes[curSec + 1])
+			curSec++;
+	}
+
+	function goToSection(index:Int)
+	{
+		if (cachedSectionTimes.length < 2) return;
+		curSec = Std.int(FlxMath.bound(index, 0, cachedSectionTimes.length - 2));
+		seekTo(cachedSectionTimes[curSec] + 0.000001);
+	}
+
+	function seekTo(time:Float)
+	{
+		var wasPlaying:Bool = FlxG.sound.music.playing;
+		if (wasPlaying) { FlxG.sound.music.pause(); vocals.pause(); opponentVocals.pause(); }
+
+		Conductor.songPosition = Math.max(0, time);
+		FlxG.sound.music.time = Conductor.songPosition;
+		if (vocals.length > 0) vocals.time = Conductor.songPosition;
+		if (opponentVocals.length > 0) opponentVocals.time = Conductor.songPosition;
+
+		if (wasPlaying) togglePlay();
+	}
+
 	function loadCharacterFile(char:String):CharacterFile
 	{
 		if (char != null)
@@ -218,15 +284,7 @@ class KBEventEditorState extends MusicBeatState
 
 	function seek(deltaMs:Float)
 	{
-		var wasPlaying:Bool = FlxG.sound.music.playing;
-		if (wasPlaying) { FlxG.sound.music.pause(); vocals.pause(); opponentVocals.pause(); }
-
-		Conductor.songPosition = Math.max(0, Conductor.songPosition + deltaMs);
-		FlxG.sound.music.time = Conductor.songPosition;
-		if (vocals.length > 0) vocals.time = Conductor.songPosition;
-		if (opponentVocals.length > 0) opponentVocals.time = Conductor.songPosition;
-
-		if (wasPlaying) togglePlay();
+		seekTo(Conductor.songPosition + deltaMs);
 	}
 
 	// ---------------- UI táctil ----------------
@@ -318,18 +376,26 @@ class KBEventEditorState extends MusicBeatState
 
 		addSmallButton(10, y, 'Retroceder', function() seek(-5000));
 		addSmallButton(120, y, 'Play/Pausa', togglePlay);
-		addSmallButton(230, y, 'Guardar', saveEvents);
-		addSmallButton(330, y, 'Borrar sel.', deleteSelected);
-		addSmallButton(430, y, 'Borrar KB', deleteAllKBEvents);
-		addSmallButton(540, y, 'Borrar TODO', deleteAllEvents);
+		addSmallButton(230, y, 'Guardar JSON', saveEvents);
+		addSmallButton(360, y, 'Borrar sel.', deleteSelected);
+		addSmallButton(460, y, 'Borrar KB', deleteAllKBEvents);
+		addSmallButton(560, y, 'Borrar TODO', deleteAllEvents);
+		snapButton = addSmallButton(660, y, 'Snap: ON', toggleSnap);
 		addSmallButton(FlxG.width - 90, y, 'Salir', closeEditor);
 	}
 
-	function addSmallButton(x:Float, y:Float, label:String, cb:Void->Void)
+	function toggleSnap()
+	{
+		snapEnabled = !snapEnabled;
+		snapButton.label.text = snapEnabled ? 'Snap: ON' : 'Snap: OFF';
+	}
+
+	function addSmallButton(x:Float, y:Float, label:String, cb:Void->Void):FlxButton
 	{
 		var btn:FlxButton = new FlxButton(x, y, label, cb);
 		btn.scrollFactor.set();
 		uiGroup.add(btn);
+		return btn;
 	}
 
 	// ---------------- Carga / eventos ----------------
@@ -354,6 +420,7 @@ class KBEventEditorState extends MusicBeatState
 
 	function placeLoadedEvent(songData:Dynamic, lane:Int)
 	{
+		songData[0] = snapTime(songData[0]);
 		var ev:EventMetaNote = new EventMetaNote(songData[0], songData);
 		finishEventSetup(ev, lane);
 		laneEvents[lane].push(ev);
@@ -368,9 +435,26 @@ class KBEventEditorState extends MusicBeatState
 		laneGroup.add(ev);
 	}
 
+	function snapTime(time:Float):Float
+	{
+		if (!snapEnabled || cachedSectionTimes.length < 2) return time;
+
+		var secIndex:Int = 0;
+		for (i in 0...cachedSectionTimes.length - 1)
+			if (time >= cachedSectionTimes[i]) secIndex = i;
+
+		var secStart:Float = cachedSectionTimes[secIndex];
+		var bpm:Float = cachedSectionBPMs[secIndex];
+		if (bpm <= 0) bpm = 100;
+		var stepCrochet:Float = (60 / bpm) * 1000 / 4;
+
+		var stepsFromStart:Int = Math.round((time - secStart) / stepCrochet);
+		return secStart + stepsFromStart * stepCrochet;
+	}
+
 	function addEvent(name:String, value1:String, value2:String, lane:Int, ?atTime:Float)
 	{
-		var time:Float = atTime != null ? atTime : Conductor.songPosition;
+		var time:Float = snapTime(atTime != null ? atTime : Conductor.songPosition);
 		var songData:Array<Dynamic> = [time, [[name, value1, value2]]];
 		var ev:EventMetaNote = new EventMetaNote(time, songData);
 		finishEventSetup(ev, lane);
@@ -446,6 +530,7 @@ class KBEventEditorState extends MusicBeatState
 		super.update(elapsed);
 
 		handleTransportKeys(elapsed);
+		handleZoom();
 		handleHotkeys();
 		rebuildGridBoxes();
 		handleTap();
@@ -472,6 +557,11 @@ class KBEventEditorState extends MusicBeatState
 		if (touchPad.buttonX.justPressed || FlxG.keys.justPressed.SPACE)
 			togglePlay();
 
+		if (touchPad.buttonLeft.justPressed || FlxG.keys.justPressed.A)
+			goToSection(curSec - 1);
+		else if (touchPad.buttonRight.justPressed || FlxG.keys.justPressed.D)
+			goToSection(curSec + 1);
+
 		if (FlxG.sound.music.playing)
 		{
 			Conductor.songPosition = FlxG.sound.music.time;
@@ -494,7 +584,24 @@ class KBEventEditorState extends MusicBeatState
 			if (opponentVocals.length > 0) opponentVocals.time = Conductor.songPosition;
 		}
 
-		scrollTime = Conductor.songPosition - (FlxG.height / 2) / PIXELS_PER_MS;
+		updateCurSec();
+		scrollTime = Conductor.songPosition - (FlxG.height / 2) / pixelsPerMs;
+	}
+
+	function handleZoom()
+	{
+		var zoomOut:Bool = touchPad.buttonV.justPressed || FlxG.keys.justPressed.Z;
+		var zoomIn:Bool = touchPad.buttonD.justPressed || FlxG.keys.justPressed.X;
+		if (!zoomOut && !zoomIn) return;
+
+		var idx:Int = zoomList.indexOf(curZoom);
+		if (idx < 0) idx = 2; // 1x por defecto si no calza exacto
+
+		if (zoomOut) idx = Std.int(Math.max(idx - 1, 0));
+		else idx = Std.int(Math.min(idx + 1, zoomList.length - 1));
+
+		curZoom = zoomList[idx];
+		pixelsPerMs = BASE_PIXELS_PER_MS * curZoom;
 	}
 
 	function handleHotkeys()
@@ -517,27 +624,58 @@ class KBEventEditorState extends MusicBeatState
 		boxGroup.clear();
 		visibleBoxes = [];
 
-		var step:Float = Conductor.stepCrochet;
-		if (step <= 0) step = 200;
+		if (cachedSectionTimes.length < 2) return;
 
-		var firstStep:Int = Math.floor(scrollTime / step) - 1;
-		var lastStep:Int = Math.ceil((scrollTime + FlxG.height / PIXELS_PER_MS) / step) + 1;
+		var viewStart:Float = scrollTime - 300;
+		var viewEnd:Float = scrollTime + FlxG.height / pixelsPerMs + 300;
 
-		for (lane in 0...LANE_COUNT)
+		var checkerColorA:FlxColor = FlxColor.fromRGB(224, 224, 224);
+		var checkerColorB:FlxColor = FlxColor.fromRGB(196, 196, 196);
+
+		var globalStep:Int = 0;
+
+		for (secIndex in 0...cachedSectionTimes.length - 1)
 		{
-			for (s in firstStep...lastStep)
+			var secStart:Float = cachedSectionTimes[secIndex];
+			var secEnd:Float = cachedSectionTimes[secIndex + 1];
+			var bpm:Float = cachedSectionBPMs[secIndex];
+			if (bpm <= 0) bpm = 100;
+
+			var stepCrochet:Float = (60 / bpm) * 1000 / 4;
+			var stepsInSection:Int = Math.round((secEnd - secStart) / stepCrochet);
+			if (stepsInSection <= 0) stepsInSection = 1;
+			var boxHeight:Float = Math.max(4, stepCrochet * pixelsPerMs);
+
+			// Línea blanca divisoria al inicio de cada sección (igual que el Chart Editor)
+			if (secStart >= viewStart && secStart <= viewEnd)
 			{
-				var time:Float = s * step;
-				var y:Float = (time - scrollTime) * PIXELS_PER_MS - BOX_SIZE / 2;
-				var x:Float = LANE_X[lane] - BOX_SIZE / 2;
+				var sepY:Float = (secStart - scrollTime) * pixelsPerMs;
+				var sep:FlxSprite = new FlxSprite(LANE_X[0] - BOX_WIDTH / 2, sepY).makeGraphic(Std.int(LANE_X[LANE_COUNT - 1] - LANE_X[0] + BOX_WIDTH), 2, FlxColor.WHITE);
+				sep.scrollFactor.set();
+				boxGroup.add(sep);
+			}
 
-				var box:FlxSprite = new FlxSprite(x, y).makeGraphic(Std.int(BOX_SIZE), Std.int(BOX_SIZE), FlxColor.TRANSPARENT);
-				box.makeGraphic(Std.int(BOX_SIZE), Std.int(BOX_SIZE), 0x00000000);
-				FlxSpriteUtil.drawRect(box, 0, 0, BOX_SIZE, BOX_SIZE, FlxColor.TRANSPARENT, {thickness: 1, color: FlxColor.fromRGB(60, 60, 70)});
-				box.scrollFactor.set();
-				boxGroup.add(box);
+			for (s in 0...stepsInSection)
+			{
+				var time:Float = secStart + s * stepCrochet;
+				var checkerColor:FlxColor = (globalStep % 2 == 0) ? checkerColorA : checkerColorB;
+				globalStep++;
 
-				visibleBoxes.push({x: x, y: y, w: BOX_SIZE, h: BOX_SIZE, lane: lane, time: time});
+				if (time < viewStart || time > viewEnd) continue;
+
+				var y:Float = (time - scrollTime) * pixelsPerMs - boxHeight / 2;
+
+				for (lane in 0...LANE_COUNT)
+				{
+					var x:Float = LANE_X[lane] - BOX_WIDTH / 2;
+
+					var box:FlxSprite = new FlxSprite(x, y).makeGraphic(Std.int(BOX_WIDTH), Math.ceil(boxHeight), checkerColor);
+					FlxSpriteUtil.drawRect(box, 0, 0, BOX_WIDTH, boxHeight, FlxColor.TRANSPARENT, {thickness: 1, color: FlxColor.fromRGB(90, 90, 100)});
+					box.scrollFactor.set();
+					boxGroup.add(box);
+
+					visibleBoxes.push({x: x, y: y, w: BOX_WIDTH, h: boxHeight, lane: lane, time: time});
+				}
 			}
 		}
 	}
@@ -571,12 +709,12 @@ class KBEventEditorState extends MusicBeatState
 		for (lane in laneEvents)
 			for (ev in lane)
 				if (ev != null)
-					ev.y = (ev.strumTime - scrollTime) * PIXELS_PER_MS - ev.height / 2;
+					ev.y = (ev.strumTime - scrollTime) * pixelsPerMs - ev.height / 2;
 	}
 
 	function updatePlayhead()
 	{
-		playhead.y = (Conductor.songPosition - scrollTime) * PIXELS_PER_MS;
+		playhead.y = (Conductor.songPosition - scrollTime) * pixelsPerMs;
 	}
 
 	// ---------------- Preview de sonidos ----------------
@@ -626,7 +764,7 @@ class KBEventEditorState extends MusicBeatState
 
 	function updateTexts()
 	{
-		headerText.text = 'Editor de Eventos KB — Tiempo: ${Math.floor(Conductor.songPosition)} ms';
+		headerText.text = 'Editor de Eventos KB — Tiempo: ${Math.floor(Conductor.songPosition)} ms — Zoom: ${Math.round(curZoom * 100)}%';
 
 		for (i in 0...LANE_COUNT)
 			laneLabels[i].color = (i == activeLane) ? FlxColor.LIME : FlxColor.WHITE;
@@ -642,13 +780,18 @@ class KBEventEditorState extends MusicBeatState
 
 	// ---------------- Guardado ----------------
 
-	function saveEvents()
+	function applyEventsToSong()
 	{
 		var all:Array<EventMetaNote> = [];
 		for (lane in laneEvents) all = all.concat(lane);
 		all.sort((a, b) -> a.strumTime < b.strumTime ? -1 : (a.strumTime > b.strumTime ? 1 : 0));
 
 		PlayState.SONG.events = [for (ev in all) [ev.strumTime, ev.events]];
+	}
+
+	function saveEvents()
+	{
+		applyEventsToSong();
 
 		var chartData:String = PsychJsonPrinter.print(PlayState.SONG, ['sectionNotes', 'events']);
 		#if mobile
@@ -660,11 +803,22 @@ class KBEventEditorState extends MusicBeatState
 		#end
 	}
 
+	// Sale directo a la canción (sin pasar por el Chart Editor), llevando los eventos
+	// que pusiste en esta sesión, pero SIN escribir el .json
 	function closeEditor()
+	{
+		applyEventsToSong();
+		goToSong();
+	}
+
+	function goToSong()
 	{
 		FlxG.sound.music.stop();
 		vocals.stop();
 		opponentVocals.stop();
-		MusicBeatState.switchState(new states.editors.ChartingState());
+		FlxG.mouse.visible = false;
+
+		StageData.loadDirectory(PlayState.SONG);
+		LoadingState.loadAndSwitchState(new PlayState());
 	}
 }
