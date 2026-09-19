@@ -102,14 +102,29 @@ class FPSCounter extends TextField
 				updateTime = currentTime + 500;
 			}
 
-			// Set Update and Draw framerate to the current FPS every 1.5 second to prevent "slowness" issue
-			if ((FlxG.updateFramerate >= currentFPS + 5 || FlxG.updateFramerate <= currentFPS - 5)
-				&& haxe.Timer.stamp() - lastFramerateUpdateTime >= 1.5
-				&& currentFPS >= 30)
-			{
-				FlxG.updateFramerate = FlxG.drawFramerate = currentFPS;
-				lastFramerateUpdateTime = haxe.Timer.stamp();
-			}
+			// FIX DE LENTITUD CONSTANTE: este bloque forzaba updateFramerate (la
+			// velocidad real de la LOGICA del juego: animaciones, notas, fisica)
+			// a igualar currentFPS (una medicion de DIBUJADO). Si en cualquier
+			// momento la medicion de dibujado bajaba aunque sea un poco (carga,
+			// pico termico, ruido de medicion al iniciar), esto CLAVABA la
+			// velocidad de la logica del juego mas abajo para el resto de la
+			// sesion -> el juego se ve fluido (drawFramerate/FPS counter siguen
+			// en 60) pero todo se mueve en camara lenta, porque la simulacion
+			// en si corre menos veces por segundo. Una vez atascado, el propio
+			// chequeo (diferencia >= 5) deja de dispararse porque currentFPS
+			// converge cerca del valor ya atascado, asi que nunca se recupera solo.
+			// Sacamos el auto-ajuste: updateFramerate se define UNA vez segun
+			// ClientPrefs.data.framerate (ver arriba) y no se debe tocar solo.
+			//
+			// (bloque original desactivado a proposito, no borrado, por si
+			// se quiere diagnosticar en el futuro)
+			// if ((FlxG.updateFramerate >= currentFPS + 5 || FlxG.updateFramerate <= currentFPS - 5)
+			// 	&& haxe.Timer.stamp() - lastFramerateUpdateTime >= 1.5
+			// 	&& currentFPS >= 30)
+			// {
+			// 	FlxG.updateFramerate = FlxG.drawFramerate = currentFPS;
+			// 	lastFramerateUpdateTime = haxe.Timer.stamp();
+			// }
 		}
 		else
 		{
