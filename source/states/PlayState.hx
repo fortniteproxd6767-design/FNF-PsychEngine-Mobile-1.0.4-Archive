@@ -156,7 +156,7 @@ class PlayState extends MusicBeatState
 	public var gf:Character = null;
 	public var boyfriend:Character = null;
 
-	public var notes:FlxTypedGroup<Note>;
+	public var notes:NoteGroup;
 	public var unspawnNotes:Array<Note> = [];
 	public var eventNotes:Array<EventNote> = [];
 
@@ -1356,7 +1356,7 @@ class PlayState extends MusicBeatState
 		catch (e:Dynamic) {}
 		FlxG.sound.list.add(inst);
 
-		notes = new FlxTypedGroup<Note>();
+		notes = new NoteGroup();
 		noteGroup.add(notes);
 
 		try
@@ -1775,8 +1775,14 @@ class PlayState extends MusicBeatState
 			{
 				Conductor.songPosition = FlxMath.lerp(FlxG.sound.music.time + Conductor.offset, Conductor.songPosition, Math.exp(-elapsed * 5));
 				var timeDiff:Float = Math.abs((FlxG.sound.music.time + Conductor.offset) - Conductor.songPosition);
-				if (timeDiff > 1000 * playbackRate)
-					Conductor.songPosition = Conductor.songPosition + 1000 * FlxMath.signOf(timeDiff);
+				// FIX DE SYNC: antes el umbral era 1000ms (!), un desfase de audio de
+				// medio segundo (comun en Android por micro-cortes del driver) se corregia
+				// arrastrando el lerp varios frames en vez de snapear de una - eso se
+				// siente como que "las flechas se ponen lentas" aunque los FPS esten bien,
+				// porque el problema es la POSICION de tiempo usada, no el frame rate.
+				// Bajamos el umbral para que corrija de inmediato ante desfases chicos.
+				if (timeDiff > 100 * playbackRate)
+					Conductor.songPosition = FlxG.sound.music.time + Conductor.offset;
 			}
 		}
 
