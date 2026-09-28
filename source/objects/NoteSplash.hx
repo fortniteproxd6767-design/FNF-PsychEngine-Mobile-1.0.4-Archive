@@ -188,6 +188,8 @@ class NoteSplash extends FlxSprite
 		configs.set(path, this.config);
 	}
 
+	static var _tempPalette:RGBPalette = null;
+
 	public function spawnSplashNote(?x:Float = 0, ?y:Float = 0, ?noteData:Int = 0, ?note:Note, ?randomize:Bool = true)
 	{
 		if (note != null && note.noteSplashData.disabled)
@@ -224,7 +226,16 @@ class NoteSplash extends FlxSprite
 			Note.initializeGlobalRGBShader(noteData % Note.colArray.length);
 			if (inEditor || (note == null || note.noteSplashData.useRGBShader) && (PlayState.SONG == null || !PlayState.SONG.disableNoteRGB))
 			{
-				tempShader = new RGBPalette();
+				// OPTIMIZACION: antes se creaba un RGBPalette (y con el un RGBPaletteShader
+				// completo) NUEVO por cada splash, solo para usarlo de "portador" de valores
+				// en copyValues() y tirarlo. Reusamos uno estatico y lo reseteamos a los
+				// mismos valores por defecto que tendria uno recien creado.
+				if (_tempPalette == null) _tempPalette = new RGBPalette();
+				tempShader = _tempPalette;
+				tempShader.r = 0xFFFF0000;
+				tempShader.g = 0xFF00FF00;
+				tempShader.b = 0xFF0000FF;
+				tempShader.mult = 1.0;
 				// If Note RGB is enabled:
 				if ((note == null || !note.noteSplashData.useGlobalShader) || inEditor)
 				{
