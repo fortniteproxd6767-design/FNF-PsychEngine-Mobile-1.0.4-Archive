@@ -404,7 +404,7 @@ class FunkinLua {
 		});
 
 		Lua_helper.add_callback(lua, "loadGraphic", function(variable:String, image:String, ?gridX:Int = 0, ?gridY:Int = 0) {
-			var split:Array<String> = variable.split('.');
+			var split:Array<String> = LuaUtils.splitCached(variable); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var spr:FlxSprite = LuaUtils.getObjectDirectly(split[0]);
 			var animated = gridX != 0 || gridY != 0;
 
@@ -418,7 +418,7 @@ class FunkinLua {
 			}
 		});
 		Lua_helper.add_callback(lua, "loadFrames", function(variable:String, image:String, spriteType:String = 'auto') {
-			var split:Array<String> = variable.split('.');
+			var split:Array<String> = LuaUtils.splitCached(variable); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var spr:FlxSprite = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				spr = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -430,7 +430,7 @@ class FunkinLua {
 			}
 		});
 		Lua_helper.add_callback(lua, "loadMultipleFrames", function(variable:String, images:Array<String>) {
-			var split:Array<String> = variable.split('.');
+			var split:Array<String> = LuaUtils.splitCached(variable); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var spr:FlxSprite = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				spr = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -874,7 +874,7 @@ class FunkinLua {
 		});
 
 		Lua_helper.add_callback(lua, "getMidpointX", function(variable:String) {
-			var split:Array<String> = variable.split('.');
+			var split:Array<String> = LuaUtils.splitCached(variable); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var obj:FlxObject = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				obj = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -884,7 +884,7 @@ class FunkinLua {
 			return 0;
 		});
 		Lua_helper.add_callback(lua, "getMidpointY", function(variable:String) {
-			var split:Array<String> = variable.split('.');
+			var split:Array<String> = LuaUtils.splitCached(variable); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var obj:FlxObject = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				obj = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -894,7 +894,7 @@ class FunkinLua {
 			return 0;
 		});
 		Lua_helper.add_callback(lua, "getGraphicMidpointX", function(variable:String) {
-			var split:Array<String> = variable.split('.');
+			var split:Array<String> = LuaUtils.splitCached(variable); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var obj:FlxSprite = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				obj = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -904,7 +904,7 @@ class FunkinLua {
 			return 0;
 		});
 		Lua_helper.add_callback(lua, "getGraphicMidpointY", function(variable:String) {
-			var split:Array<String> = variable.split('.');
+			var split:Array<String> = LuaUtils.splitCached(variable); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var obj:FlxSprite = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				obj = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -914,7 +914,7 @@ class FunkinLua {
 			return 0;
 		});
 		Lua_helper.add_callback(lua, "getScreenPositionX", function(variable:String, ?camera:String = 'game') {
-			var split:Array<String> = variable.split('.');
+			var split:Array<String> = LuaUtils.splitCached(variable); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var obj:FlxObject = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				obj = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -924,7 +924,7 @@ class FunkinLua {
 			return 0;
 		});
 		Lua_helper.add_callback(lua, "getScreenPositionY", function(variable:String, ?camera:String = 'game') {
-			var split:Array<String> = variable.split('.');
+			var split:Array<String> = LuaUtils.splitCached(variable); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var obj:FlxObject = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				obj = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -1052,7 +1052,7 @@ class FunkinLua {
 				return;
 			}
 
-			var split:Array<String> = obj.split('.');
+			var split:Array<String> = LuaUtils.splitCached(obj); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var poop:FlxSprite = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				poop = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -1073,7 +1073,7 @@ class FunkinLua {
 				return;
 			}
 
-			var split:Array<String> = obj.split('.');
+			var split:Array<String> = LuaUtils.splitCached(obj); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var poop:FlxSprite = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				poop = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -1093,7 +1093,7 @@ class FunkinLua {
 				return;
 			}
 
-			var split:Array<String> = obj.split('.');
+			var split:Array<String> = LuaUtils.splitCached(obj); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var poop:FlxSprite = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				poop = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -1162,7 +1162,7 @@ class FunkinLua {
 				return true;
 			}
 
-			var split:Array<String> = obj.split('.');
+			var split:Array<String> = LuaUtils.splitCached(obj); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var object:FlxBasic = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				object = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -1182,7 +1182,7 @@ class FunkinLua {
 				return true;
 			}
 
-			var split:Array<String> = obj.split('.');
+			var split:Array<String> = LuaUtils.splitCached(obj); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var spr:FlxSprite = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				spr = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -1199,7 +1199,7 @@ class FunkinLua {
 			var spr:FlxObject = game.getLuaObject(obj);
 
 			if(spr==null){
-				var split:Array<String> = obj.split('.');
+				var split:Array<String> = LuaUtils.splitCached(obj); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 				spr = LuaUtils.getObjectDirectly(split[0]);
 				if(split.length > 1) {
 					spr = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);
@@ -1237,7 +1237,7 @@ class FunkinLua {
 			return (!objectsArray.contains(null) && FlxG.overlap(objectsArray[0], objectsArray[1]));
 		});
 		Lua_helper.add_callback(lua, "getPixelColor", function(obj:String, x:Int, y:Int) {
-			var split:Array<String> = obj.split('.');
+			var split:Array<String> = LuaUtils.splitCached(obj); // OPTIMIZACION: cacheado, ver LuaUtils.splitCached
 			var spr:FlxSprite = LuaUtils.getObjectDirectly(split[0]);
 			if(split.length > 1) {
 				spr = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split), split[split.length-1]);

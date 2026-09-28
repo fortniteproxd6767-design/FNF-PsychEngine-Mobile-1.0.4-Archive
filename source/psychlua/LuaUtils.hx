@@ -27,6 +27,26 @@ class LuaUtils
 	public static final Function_StopHScript:String = "##PSYCHLUA_FUNCTIONSTOPHSCRIPT";
 	public static final Function_StopAll:String = "##PSYCHLUA_FUNCTIONSTOPALL";
 
+	// OPTIMIZACION: getProperty/setProperty/getPropertyFromGroup/etc. se llaman
+	// constantemente desde onUpdate() de scripts Lua, y cada llamada partia el
+	// mismo string ('healthBar.x', etc.) en un Array<String> NUEVO cada vez con
+	// .split('.'). Como el string que manda un script Lua es literal (la misma
+	// linea de codigo pasa el mismo texto en cada frame), cacheamos el resultado
+	// por string: se parte una sola vez por cada path unico usado en toda la
+	// sesion, no una vez por llamada. Nadie muta el array despues (confirmado:
+	// solo se lee por indice), asi que compartir la referencia es seguro.
+	static var _splitCache:Map<String, Array<String>> = new Map<String, Array<String>>();
+	public static inline function splitCached(variable:String):Array<String>
+	{
+		var cached:Array<String> = _splitCache.get(variable);
+		if (cached == null)
+		{
+			cached = variable.split('.');
+			_splitCache.set(variable, cached);
+		}
+		return cached;
+	}
+
 	public static function getLuaTween(options:Dynamic)
 	{
 		return (options != null) ? {
@@ -201,7 +221,7 @@ class LuaUtils
 	}
 
 	public static function setGroupStuff(leArray:Dynamic, variable:String, value:Dynamic, ?allowMaps:Bool = false) {
-		var split:Array<String> = variable.split('.');
+		var split:Array<String> = splitCached(variable);
 		if(split.length > 1) {
 			var obj:Dynamic = Reflect.getProperty(leArray, split[0]);
 			for (i in 1...split.length-1)
@@ -215,7 +235,7 @@ class LuaUtils
 		return value;
 	}
 	public static function getGroupStuff(leArray:Dynamic, variable:String, ?allowMaps:Bool = false) {
-		var split:Array<String> = variable.split('.');
+		var split:Array<String> = splitCached(variable);
 		if(split.length > 1) {
 			var obj:Dynamic = Reflect.getProperty(leArray, split[0]);
 			for (i in 1...split.length-1)
