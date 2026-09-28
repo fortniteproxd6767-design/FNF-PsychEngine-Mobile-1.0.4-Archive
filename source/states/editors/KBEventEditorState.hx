@@ -31,6 +31,8 @@ class KBEventEditorState extends MusicBeatState
 	static final LANE_NAMES:Array<String> = ['Carril A', 'Carril B', 'Carril C'];
 	static inline final BASE_PIXELS_PER_MS:Float = 0.25;
 	static inline final BOX_WIDTH:Float = 40;
+	// "Evento cada 3 cuadros": deben quedar 3 cuadros vacíos entre eventos (1 -> 5), o sea 4 steps de distancia mínima
+	static inline final EVENT_GAP_STEPS:Int = 4;
 	static final zoomList:Array<Float> = [0.25, 0.5, 1, 2, 3, 4, 6, 8, 12, 16, 24];
 	static inline final SOUND_SKIN:String = 'kade'; // mismo default que KB_DodgeFixx.lua
 
@@ -69,6 +71,10 @@ class KBEventEditorState extends MusicBeatState
 	var curZoom:Float = 1;
 	var pixelsPerMs:Float = BASE_PIXELS_PER_MS;
 	var snapEnabled:Bool = true;
+	var spacingEnabled:Bool = false;
+	var playbackRate:Float = 1; // solo del editor, se resetea a 1 al salir
+	var warnMsg:String = '';
+	var warnTimer:Float = 0;
 
 	// Secciones (igual que el Chart Editor: tiempos de inicio de cada sección, según BPM)
 	var cachedSectionTimes:Array<Float> = [];
@@ -79,6 +85,9 @@ class KBEventEditorState extends MusicBeatState
 	var infoText:FlxText;
 	var headerText:FlxText;
 	var selectedEvent:EventMetaNote = null;
+	// Último evento colocado en esta sesión (para la seguidilla de la sierra: Fire 1, 2, 3...)
+	var lastPlacedName:String = null;
+	var lastPlacedValue1:String = '';
 
 	// Audio
 	var vocals:FlxSound = new FlxSound();
@@ -92,6 +101,8 @@ class KBEventEditorState extends MusicBeatState
 	var value1Input:PsychUIInputText;
 	var value2Input:PsychUIInputText;
 	var snapButton:FlxButton;
+	var spacingButton:FlxButton;
+	var speedInput:PsychUIInputText;
 
 	override function create()
 	{
@@ -345,6 +356,34 @@ class KBEventEditorState extends MusicBeatState
 			if (selectedEvent != null) selectedEvent.events[0][2] = newText;
 		};
 		uiGroup.add(value2Input);
+
+		var speedLabel:FlxText = new FlxText(715, FlxG.height - 268, 70, 'Velocidad:', 12);
+		speedLabel.scrollFactor.set();
+		uiGroup.add(speedLabel);
+
+		// Al tocarlo se abre el teclado del teléfono. Acepta de 0.1 a 5 (ej: 0.5 = lento, 1.5 = rápido)
+		speedInput = new PsychUIInputText(790, FlxG.height - 272, 60, '1', 12);
+		speedInput.scrollFactor.set();
+		speedInput.onChange = function(_, newText:String)
+		{
+			var v:Float = Std.parseFloat(StringTools.replace(newText, ',', '.'));
+			if (!Math.isNaN(v) && v >= 0.1 && v <= 5)
+			{
+				playbackRate = v;
+				setPitch();
+			}
+		};
+		uiGroup.add(speedInput);
+	}
+
+	// Cambia la velocidad de la música y las voces (solo dentro del editor)
+	function setPitch()
+	{
+		#if FLX_PITCH
+		if (FlxG.sound.music != null) FlxG.sound.music.pitch = playbackRate;
+		vocals.pitch = playbackRate;
+		opponentVocals.pitch = playbackRate;
+		#end
 	}
 
 	function buildEventButtons()
@@ -362,7 +401,7 @@ class KBEventEditorState extends MusicBeatState
 			var row:Int = Std.int(i / perRow);
 			var btn:FlxButton = new FlxButton(startX + col * (btnWidth + 6), y + row * 36, data[0], function()
 			{
-				addEvent(data[1], data[2], data[3], activeLane);
+				placeQuickEvent(data);
 			});
 			btn.setGraphicSize(Std.int(btnWidth), 32);
 			btn.updateHitbox();
@@ -370,6 +409,65 @@ class KBEventEditorState extends MusicBeatState
 			uiGroup.add(btn);
 			eventButtons.push(btn);
 		}
+		refreshFireButtonLabel();
+	}
+
+	// Número que le toca a la seguidilla de un evento (1 si lo último que colocaste no fue ese evento)
+	function nextSeqNumber(eventName:String):Int
+	{
+		if (lastPlacedName == eventName)
+		{
+			var prev:Null<Int> = Std.parseInt(lastPlacedValue1);
+			if (prev != null) return prev + 1;
+		}
+		return 1;
+	}
+
+	function refreshFireButtonLabel()
+	{
+		for (i in 0...KB_BUTTONS.length)
+		{
+			if (KB_BUTTONS[i][1] != 'KB_AttackFire') continue;
+			var next:Int = nextSeqNumber('KB_AttackFire');
+			eventButtons[i].label.text = (next > ATTACK_SOUNDS.length) ? 'Fire (máx)' : 'Fire ($next)';
+		}
+	}
+
+	// Botón G del pad: alerta 1, 2, 3... hasta que pongas otro evento (ahí vuelve a 1)
+	function placeNextAlert()
+	{
+		var next:Int = nextSeqNumber('KB_Alert');
+		if (next > ALERT_SOUNDS.length)
+		{
+			showWarning('La alerta solo llega hasta ${ALERT_SOUNDS.length}. Pon otro evento para reiniciar la seguidilla.');
+			return;
+		}
+		addEvent('KB_Alert', Std.string(next), '', activeLane);
+	}
+
+	// Colocación desde botones/atajos. La sierra hace seguidilla: si lo último que pusiste fue
+	// sierra N, la siguiente es N+1, hasta que pongas otro evento (ahí vuelve a empezar en 1).
+	function placeQuickEvent(data:Array<String>)
+	{
+		if (data[1] == 'KB_AttackFire')
+		{
+			placeNextFire();
+			return;
+		}
+
+		addEvent(data[1], data[2], data[3], activeLane);
+	}
+
+	// Botón H del pad (y botón Fire): sierra 1, 2, 3... hasta que pongas otro evento (ahí vuelve a 1)
+	function placeNextFire()
+	{
+		var next:Int = nextSeqNumber('KB_AttackFire');
+		if (next > ATTACK_SOUNDS.length)
+		{
+			showWarning('La sierra solo llega hasta ${ATTACK_SOUNDS.length}. Pon otro evento para reiniciar la seguidilla.');
+			return;
+		}
+		addEvent('KB_AttackFire', Std.string(next), '', activeLane);
 	}
 
 	function buildBottomBar()
@@ -383,7 +481,14 @@ class KBEventEditorState extends MusicBeatState
 		addSmallButton(460, y, 'Borrar KB', deleteAllKBEvents);
 		addSmallButton(560, y, 'Borrar TODO', deleteAllEvents);
 		snapButton = addSmallButton(660, y, 'Snap: ON', toggleSnap);
+		spacingButton = addSmallButton(760, y, 'Cada 3 cuadros: OFF', toggleSpacing, 170);
 		addSmallButton(FlxG.width - 90, y, 'Salir', closeEditor);
+	}
+
+	function toggleSpacing()
+	{
+		spacingEnabled = !spacingEnabled;
+		spacingButton.label.text = spacingEnabled ? 'Cada 3 cuadros: ON' : 'Cada 3 cuadros: OFF';
 	}
 
 	function toggleSnap()
@@ -392,9 +497,15 @@ class KBEventEditorState extends MusicBeatState
 		snapButton.label.text = snapEnabled ? 'Snap: ON' : 'Snap: OFF';
 	}
 
-	function addSmallButton(x:Float, y:Float, label:String, cb:Void->Void):FlxButton
+	function addSmallButton(x:Float, y:Float, label:String, cb:Void->Void, ?w:Float):FlxButton
 	{
 		var btn:FlxButton = new FlxButton(x, y, label, cb);
+		if (w != null)
+		{
+			btn.setGraphicSize(Std.int(w), Std.int(btn.height));
+			btn.updateHitbox();
+			btn.label.fieldWidth = w;
+		}
 		btn.scrollFactor.set();
 		uiGroup.add(btn);
 		return btn;
@@ -454,14 +565,57 @@ class KBEventEditorState extends MusicBeatState
 		return secStart + stepsFromStart * stepCrochet;
 	}
 
+	function stepCrochetAt(time:Float):Float
+	{
+		if (cachedSectionTimes.length < 2)
+			return Conductor.stepCrochet > 0 ? Conductor.stepCrochet : 200;
+
+		var secIndex:Int = 0;
+		for (i in 0...cachedSectionTimes.length - 1)
+			if (time >= cachedSectionTimes[i]) secIndex = i;
+
+		var bpm:Float = cachedSectionBPMs[secIndex];
+		if (bpm <= 0) bpm = 100;
+		return (60 / bpm) * 1000 / 4;
+	}
+
+	// Con "Cada 3 cuadros" activo: en un mismo carril, entre dos eventos deben quedar 3 cuadros vacíos
+	function isTooCloseToOtherEvent(time:Float, lane:Int):Bool
+	{
+		if (!spacingEnabled) return false;
+
+		var minGap:Float = stepCrochetAt(time) * EVENT_GAP_STEPS - 1; // -1ms de tolerancia por redondeos
+		for (ev in laneEvents[lane])
+			if (Math.abs(ev.strumTime - time) < minGap)
+				return true;
+		return false;
+	}
+
+	function showWarning(msg:String)
+	{
+		warnMsg = msg;
+		warnTimer = 2.5;
+	}
+
 	function addEvent(name:String, value1:String, value2:String, lane:Int, ?atTime:Float)
 	{
 		var time:Float = snapTime(atTime != null ? atTime : Conductor.songPosition);
+
+		if (isTooCloseToOtherEvent(time, lane))
+		{
+			showWarning('No se puede: deben haber 3 cuadros vacíos entre eventos en ${LANE_NAMES[lane]}');
+			return;
+		}
+
 		var songData:Array<Dynamic> = [time, [[name, value1, value2]]];
 		var ev:EventMetaNote = new EventMetaNote(time, songData);
 		finishEventSetup(ev, lane);
 		laneEvents[lane].push(ev);
 		selectEvent(ev);
+
+		lastPlacedName = name;
+		lastPlacedValue1 = value1;
+		refreshFireButtonLabel();
 	}
 
 	function selectEvent(ev:EventMetaNote)
@@ -530,6 +684,8 @@ class KBEventEditorState extends MusicBeatState
 	override function update(elapsed:Float)
 	{
 		super.update(elapsed);
+
+		if (warnTimer > 0) warnTimer -= elapsed;
 
 		handleTransportKeys(elapsed);
 		handleZoom();
@@ -608,12 +764,16 @@ class KBEventEditorState extends MusicBeatState
 
 	function handleHotkeys()
 	{
+		if (touchPad.buttonG.justPressed)
+			placeNextAlert();
+		else if (touchPad.buttonH.justPressed)
+			placeNextFire();
+
 		for (key => index in KB_HOTKEYS)
 		{
 			if (FlxG.keys.checkStatus(key, JUST_PRESSED))
 			{
-				var data = KB_BUTTONS[index];
-				addEvent(data[1], data[2], data[3], activeLane);
+				placeQuickEvent(KB_BUTTONS[index]);
 				break;
 			}
 		}
@@ -766,7 +926,7 @@ class KBEventEditorState extends MusicBeatState
 
 	function updateTexts()
 	{
-		headerText.text = 'Editor de Eventos KB — Tiempo: ${Math.floor(Conductor.songPosition)} ms — Zoom: ${Math.round(curZoom * 100)}%';
+		headerText.text = 'Editor de Eventos KB — Tiempo: ${Math.floor(Conductor.songPosition)} ms — Zoom: ${Math.round(curZoom * 100)}% — Velocidad: ${Math.round(playbackRate * 100) / 100}x';
 
 		for (i in 0...LANE_COUNT)
 			laneLabels[i].color = (i == activeLane) ? FlxColor.LIME : FlxColor.WHITE;
@@ -777,7 +937,12 @@ class KBEventEditorState extends MusicBeatState
 			var d = selectedEvent.events[0];
 			sel = 'Seleccionado: ${d[0]}  (edita Value 1 / Value 2 arriba)';
 		}
-		infoText.text = 'Carril activo: ${LANE_NAMES[activeLane]} (toca A/B/C arriba)\n' + sel;
+		var nextAlert:Int = nextSeqNumber('KB_Alert');
+		var alertInfo:String = (nextAlert > ALERT_SOUNDS.length) ? 'máx' : Std.string(nextAlert);
+		var nextFire:Int = nextSeqNumber('KB_AttackFire');
+		var fireInfo:String = (nextFire > ATTACK_SOUNDS.length) ? 'máx' : Std.string(nextFire);
+		infoText.text = 'Carril activo: ${LANE_NAMES[activeLane]} (toca A/B/C arriba) — G del pad: Alerta ($alertInfo) — H del pad: Sierra ($fireInfo)\n' + sel;
+		if (warnTimer > 0) infoText.text += '\n' + warnMsg;
 	}
 
 	// ---------------- Guardado ----------------
@@ -815,6 +980,8 @@ class KBEventEditorState extends MusicBeatState
 
 	function goToSong()
 	{
+		playbackRate = 1;
+		setPitch(); // que la velocidad del editor no afecte la canción
 		FlxG.sound.music.stop();
 		vocals.stop();
 		opponentVocals.stop();
