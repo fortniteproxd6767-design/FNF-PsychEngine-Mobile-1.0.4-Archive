@@ -1,0 +1,18 @@
+{
+	"songs": [
+		["Termination", "kb", [150, 0, 0]]
+	],
+	"weekCharacters": [
+		"kb",
+		"bf",
+		"gf"
+	],
+	"weekName": "termination",
+	"weekBackground": "stage",
+	"difficulties": "Classic, Very Hard",
+	"storyName": "QT",
+	"weekBefore": "qt_kb_week",
+	"startUnlocked": true,
+	"hideStoryMode": true,
+	"hideUntilUnlocked": false
+}
